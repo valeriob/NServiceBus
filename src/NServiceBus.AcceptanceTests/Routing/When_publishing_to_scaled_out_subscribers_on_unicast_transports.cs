@@ -1,12 +1,16 @@
 ﻿namespace NServiceBus.AcceptanceTests.Routing
 {
+    using System;
     using System.Threading;
     using System.Threading.Tasks;
     using AcceptanceTesting;
     using AcceptanceTesting.Customization;
+    using Configuration.AdvanceExtensibility;
     using EndpointTemplates;
+    using NServiceBus.Routing.MessageDrivenSubscriptions;
     using NUnit.Framework;
     using ScenarioDescriptors;
+    using Settings;
 
     public class When_publishing_to_scaled_out_subscribers_on_unicast_transports : NServiceBusAcceptanceTest
     {
@@ -71,7 +75,7 @@
         {
             public SubscriberA()
             {
-                EndpointSetup<DefaultServer>(c => { c.UnicastRouting().AddPublisher(PublisherEndpoint, typeof(MyEvent)); });
+                EndpointSetup<DefaultServer>(c => { RegisterPublisherForType(c, PublisherEndpoint, typeof(MyEvent)); });
             }
 
             public class MyEventHandler : IHandleMessages<MyEvent>
@@ -90,7 +94,7 @@
         {
             public SubscriberB()
             {
-                EndpointSetup<DefaultServer>(c => { c.UnicastRouting().AddPublisher(PublisherEndpoint, typeof(MyEvent)); });
+                EndpointSetup<DefaultServer>(c => { RegisterPublisherForType(c, PublisherEndpoint, typeof(MyEvent)); });
             }
 
             public class MyEventHandler : IHandleMessages<MyEvent>
@@ -103,6 +107,23 @@
                     return Task.FromResult(0);
                 }
             }
+        }
+
+        static void RegisterPublisherForType(EndpointConfiguration config, string publisherEndpoint, Type eventType)
+        {
+            GetOrCreate<Publishers>(config.GetSettings()).Add(publisherEndpoint, eventType);
+        }
+
+        static T GetOrCreate<T>(SettingsHolder settings)
+            where T : new()
+        {
+            T value;
+            if (!settings.TryGet(out value))
+            {
+                value = new T();
+                settings.Set<T>(value);
+            }
+            return value;
         }
 
         public class MyEvent : IEvent
